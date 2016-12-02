@@ -19,30 +19,12 @@ def sobelEdge(image):
     return mag
 
 
-def GlobablAdaptiveThreshold(image):
-    """Removal of background using global adaptive threshold"""
 
-    org = image.copy()
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    # Doesn't work good
-    # image = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 5, 2)
-
-    cv2.threshold(image,0,255, cv2.THRESH_BINARY |cv2.THRESH_OTSU,image)
-    image = cv2.bitwise_not(image)
-
-    image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    res = cv2.bitwise_and(image, org)
-
-    # cv2.imshow("Simple Thresh", res)
-    # cv2.waitKey(0)
-    return res
-
-
-def paperMethod(image):
+def paperMethod(org):
     # image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    org = image.copy()
+    image = org.copy()
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Negate the image
     image = cv2.bitwise_not(image)
@@ -51,31 +33,51 @@ def paperMethod(image):
     image = sobelEdge(image)
 
     # Gaussian blurring the result from sobel edge to smooth out outliers
-    image = cv2.GaussianBlur(image, (5,5),5)
-    # image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    image = cv2.GaussianBlur(image, (7,7),7)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    cv2.threshold(image, 8, 255, cv2.THRESH_BINARY, image)
-    # image = cv2.floodFill(image,None,None,(255,255,255),0,0)
+    ret, image = cv2.threshold(image, 20, 255, cv2.THRESH_BINARY)
 
-    res = cv2.bitwise_and(org, image)
-    image = cv2.bitwise_not(image)
-    res = cv2.bitwise_or(image,res)
-    # image = cv2.adaptiveThreshold(image, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 5, 2)
 
-    # cv2.imshow("Negated image", res)
-    # cv2.waitKey(0)
+    # Create a blank image
+    blank =  np.zeros_like(image)
+    contours, _ = cv2.findContours(image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Create a mask
+    cv2.fillPoly(blank, contours, (255,255,255))
+    # cv2.drawContours(blank, contours, -1, (255,255,255),1)
+
+    blank = cv2.merge((blank, blank, blank))
+    print org.shape
+    print blank.shape
+
+    blank = cv2.erode(blank, None, iterations=3)
+    add = cv2.bitwise_not(blank)
+
+    # Apply the mask image
+    res = cv2.bitwise_and(org, blank)
+    res = cv2.add(res, add)
+
+    # cv2.imshow("Image", add)
+    cv2.imshow("Mask", org)
+    cv2.waitKey(0)
+
     return res
 
 
 def exploreBGRemoval(path, SAVE=False):
     folder = glob.glob(path + "/*.jpg")
 
+    if len(folder) == 0:
+        folder = glob.glob(path + "/*.png")
+
     for file in folder:
         image = cv2.imread(file, 1)
-        # GlobablAdaptiveThreshold(image)
         res = paperMethod(image)
         cv2.imshow("BG Removed", res)
         k = cv2.waitKey(0)
+        if k == 27 or k == 32:
+            break
 
         if SAVE:
             res = np.hstack((image, res))
@@ -83,11 +85,7 @@ def exploreBGRemoval(path, SAVE=False):
 
 
 if __name__ == "__main__":
-    image = cv2.imread("G:/Filters/BG/p2.jpg",1)
-    # GlobablAdaptiveThreshold(image)
-    # print image.shape
-    # paperMethod(image)
-    # sobelEdge(image)
+    image = cv2.imread("G:/Filters/BG/p1.jpg",1)
 
     path = "G:/Filters/BG"
-    exploreBGRemoval(path, SAVE=True)
+    exploreBGRemoval(path, SAVE=False)
